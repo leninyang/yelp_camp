@@ -1,44 +1,55 @@
-var express = require('express');
-var app = express();
-var bodyParser = require("body-parser");
+var express                  = require('express');
+    app                      = express();
+    bodyParser               = require("body-parser");
+    mongoose                 = require("mongoose");
+    passport                 = require("passport");
+    LocalStrategy            = require("passport-local");
+    Campground               = require("./models/campground");
+    Comment                  = require("./models/comment");
+    User                     = require("./models/user");
+    seedDB                   = require("./seeds");
 
-// MIDDLEWARE
-app.use(bodyParser.urlencoded({extended: true}));
-// DON'T HAVE TO add .ejs
-app.set("view engine", "ejs");
+// REQUIRING ROUTES
+var commentRoutes            = require("./routes/comments");
+    campgroundRoutes         = require("./routes/campgrounds");
+    indexRoutes               = require("./routes/index");
+
 var port = process.env.PORT || 3000;
 
-var campgrounds = [
-  {name: "Salmon Creek", image: "https://farm6.staticflickr.com/5181/5641024448_04fefbb64d.jpg"},
-  {name: "Granite Hill", image: "https://farm7.staticflickr.com/6014/6015893151_044a2af184.jpg"},
-  {name: "Mountain Hill", image: "https://farm3.staticflickr.com/2464/3694344957_14180103ed.jpg"}
-];
+mongoose.connect("mongodb://localhost/yelp_camp");
+app.use(bodyParser.urlencoded({extended: true}));
+// ALLOWS SO THAT DONT HAVE TO ADD .ejs
+app.set("view engine", "ejs");
+app.use(express.static(__dirname + "/public"));
 
-// GET ROUTE | LANDING PAGE
-app.get('/', function(req, res) {
-  res.render("landing")
-})
+//Seeds Database with seed data
+seedDB();
 
-// Show all Campgrounds
-app.get("/campgrounds", function(req, res) {
-  res.render("campgrounds", {campgrounds: campgrounds});
+// PASSPORT CONFIGURATIONS
+app.use(require("express-session")({
+  secret: "password password",
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+passport.use(new LocalStrategy(User.authenticate()));
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
+
+// Middleware that passes in currentuser in every single route
+// Used for Show/Hiding links in navbar
+app.use(function(req, res, next) {
+  res.locals.currentUser = req.user;
+  next();
 });
 
-// Create a New Campground
-app.post("/campgrounds", function(req, res) {
-  //Get Data from form and add to campgrounds array
-  var name = req.body.name
-  var image = req.body.image
-  var newCampGround = {name: name, image: image}
-  campgrounds.push(newCampGround);
-  //Redirect back to campgrounds page
-  res.redirect('/campgrounds');
-});
 
-// Shows the form that will send data to POST Route
-app.get("/campgrounds/new", function(req, res){
-  res.render("new")
-})
+// Appends whatever is inside "" to beginning of each route.
+app.use("/", indexRoutes);
+app.use("/campgrounds", campgroundRoutes);
+app.use("/campgrounds/:id/comments", commentRoutes);
+
 
 app.listen(port, function() {
   console.log('YelpCamp Server Has Started');
